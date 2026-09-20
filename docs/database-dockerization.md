@@ -1,36 +1,77 @@
 # Database Dockerization
 
+The database is PostgreSQL 15. It is private to the Compose network and persists data in a named Docker volume.
+
 ## Prerequisites
 
-- Docker Engine and Docker Compose v2.
-- A database password for the local exam environment.
+- Docker Engine with Docker Compose v2.
+- A free Docker volume location.
+- Host port `5432` is not required because the database is not published.
 
-## Local Run
+## Dockerfile Explanation
 
-Without Docker, start PostgreSQL 15 and create a database matching the server `DATABASE_URL`.
+File: `src/database/Dockerfile`
 
-## Dockerization Steps
+```dockerfile
+FROM postgres:15-alpine
+```
 
-The database Dockerfile extends the official `postgres:15-alpine` image. Compose supplies `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`, and the named `postgres_data` volume preserves data between restarts.
+Uses the official PostgreSQL 15 Alpine image. PostgreSQL does not need to be installed manually.
 
-The database is started as part of the combined setup:
+```dockerfile
+ENV PGDATA=/var/lib/postgresql/data/pgdata
+```
+
+Places the PostgreSQL cluster under the directory mounted by the persistent volume.
+
+```dockerfile
+EXPOSE 5432
+```
+
+Documents PostgreSQL's internal port. Compose does not publish it because only the server needs access.
+
+## Initialization Variables
+
+Compose passes these values to the official image:
+
+```text
+POSTGRES_USER=ecommerce
+POSTGRES_PASSWORD=change-me
+POSTGRES_DB=b2c_ecommerce
+```
+
+PostgreSQL reads them only when the volume is first initialized. Changing them later does not change an existing volume.
+
+## Persistence
+
+```yaml
+volumes:
+  - postgres_data:/var/lib/postgresql/data
+```
+
+The named volume survives container removal and normal `docker compose down`.
+
+Delete all local database data with:
 
 ```bash
 cd docker/combined
-cp .env.example .env
-docker compose up --build
+docker compose down -v
 ```
+
+## Migrations and Seed Data
+
+```bash
+cd docker/combined
+docker compose up -d
+docker compose exec server npm run seed
+```
+
+Migrations create the schema. Seeding inserts the sample users, categories, products, variants, and attributes.
 
 ## Verification
 
 ```bash
-cd docker/combined
-docker compose ps
 docker compose exec database pg_isready -U ecommerce -d b2c_ecommerce
 ```
 
-To reset the exam database completely, remove the volume:
-
-```bash
-docker compose down --volumes
-```
+Expected output contains `accepting connections`.

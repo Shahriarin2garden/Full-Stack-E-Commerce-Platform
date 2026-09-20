@@ -3,6 +3,8 @@ services:
     build: ./client
     ports:
       - "3000:3000"
+    env_file:
+      - ./client/.env.local
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL_DEV=http://localhost:5000/api/v1
@@ -19,7 +21,7 @@ services:
     ports:
       - "5000:5000"
     env_file:
-      - .env
+      - ./server/.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379
