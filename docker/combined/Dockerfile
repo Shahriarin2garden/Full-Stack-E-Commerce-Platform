@@ -1,11 +1,11 @@
-# Build dependencies once so the final image stays small.
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+# Shared multi-target Dockerfile used by the combined Compose file.
+# Compose selects either the frontend or server target below.
 
-# NEXT_PUBLIC_* values are embedded into the browser bundle during this build.
-COPY . .
+FROM node:22-alpine AS frontend
+WORKDIR /app
+COPY src/client/package*.json ./
+RUN npm ci
+COPY src/client ./
 ARG NEXT_PUBLIC_API_URL_PROD=http://localhost:5000/api/v1
 ARG NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
 ENV NEXT_PUBLIC_API_URL_PROD=$NEXT_PUBLIC_API_URL_PROD
@@ -16,15 +16,19 @@ RUN sed -i 's/import { Poppins } from "next\/font\/google";/const Poppins = () =
 	&& sed -i '/const poppins = Poppins({/,/});/c\const poppins = Poppins();' app/layout.tsx \
 	&& npm run build
 RUN npm prune --omit=dev
-
-# Run the normal Next production server without changing application config.
-FROM node:22-alpine AS runtime
-WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3000
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/public ./public
-COPY --from=build /app/.next ./.next
 EXPOSE 3000
+CMD ["npm", "start"]
+
+FROM node:22-alpine AS server
+WORKDIR /app
+COPY src/server/package*.json ./
+RUN npm ci
+COPY src/server/prisma ./prisma
+RUN npx prisma generate
+COPY src/server ./
+RUN npm run build
+RUN npm prune --omit=dev
+ENV NODE_ENV=production
+ENV PORT=5000
+EXPOSE 5000
 CMD ["npm", "start"]

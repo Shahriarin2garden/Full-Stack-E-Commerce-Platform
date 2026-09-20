@@ -1,28 +1,21 @@
-# Use lightweight Node.js base
-FROM node:22-alpine
-
-# Set working directory
+# Install dependencies and compile the TypeScript server in a build stage.
+FROM node:22-alpine AS build
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies (including Prisma & TS)
 RUN npm ci
-
-# Copy Prisma schema and generate client
 COPY prisma ./prisma
 RUN npx prisma generate
-
-# Copy project files
 COPY . .
-
-# Build TypeScript
 RUN npm run build
 
-# Set environment variables
+# Keep only runtime files in the final image.
+FROM node:22-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
 ENV PORT=5000
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/dist ./dist
 EXPOSE 5000
-
-# Run compiled server
 CMD ["npm", "start"]
